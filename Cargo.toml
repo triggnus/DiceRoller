@@ -1,0 +1,27 @@
+[package]
+name = "DiceRoll"
+version = "0.1.0"
+edition = "2021"
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+opt-level = 3
+
+[dependencies]
+rand = "0.9.0-alpha.2"
+thousands = "0.2.0"
+titan_lib = { path = "../titan_lib", version = "0.1.0" }
+eframe = "0.29.1"
+
+# For image support:
+#egui_extras = { workspace = true, features = ["default", "image"] }
+egui_extras = "0.29.1"
+
+env_logger = { version = "0.11.5", default-features = false, features = [
+    "auto-color",
+    "humantime",
+] }
+
+futures = "0.3.31"
