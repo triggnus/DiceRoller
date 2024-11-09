@@ -1,11 +1,8 @@
-use std::future::Future;
-use std::process::Output;
 use std::str::FromStr;
-use eframe::{egui, CreationContext};
+use eframe::egui;
 use egui::Key;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::Vec2;
-use futures::executor::block_on;
 use rand::Rng;
 use thousands::Separable;
 
@@ -67,19 +64,6 @@ struct DiceApp
     results: String,
 }
 
-impl DiceApp
-{
-    fn new(_cc: &CreationContext<'_>) -> Self
-    {
-        Self
-        {
-            sides: "12".to_owned(),
-            times: "1000000".to_owned(),
-            results: "".to_owned(),
-        }
-    }
-}
-
 impl Default for DiceApp
 {
     fn default() -> Self
@@ -90,19 +74,6 @@ impl Default for DiceApp
             times: "1000000".to_owned(),
             results: "".to_owned(),
         }
-    }
-}
-
-struct Roller
-{
-    is_running: bool,
-}
-
-impl Roller
-{
-    fn new() -> Self
-    {
-        Self {is_running: false}
     }
 }
 
