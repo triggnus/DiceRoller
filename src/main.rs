@@ -24,9 +24,6 @@ fn main() -> eframe::Result
         ..Default::default()
     };
 
-    //TEST
-    //Test 2
-
     //let die = 6;
     //let die:i32 = get_from_stdin("How Many Sides: ");
     //let times = 100_000_000;
@@ -64,15 +61,17 @@ fn main() -> eframe::Result
 
 struct DiceApp
 {
-    sides: i32,
-    times: i32,
+    sides: String,
+    times: String,
     value_a: Arc<Mutex<f64>>,
     value_b: Arc<Mutex<f64>>,
     results: String,
-    done_a: bool,
-    done_b: bool,
     handle_a: JoinHandle<()>,
     handle_b: JoinHandle<()>,
+    rolling_a: bool,
+    rolling_b: bool,
+    ready_a: bool,
+    ready_b: bool,
 }
 
 impl Default for DiceApp
@@ -81,35 +80,49 @@ impl Default for DiceApp
     {
         Self
         {
-            sides: 12,
-            times: 100_000_000,
+            sides: "12".to_owned(),
+            times: "100000000".to_owned(),
             value_a: Arc::new(Mutex::new(0.0)),
             value_b: Arc::new(Mutex::new(0.0)),
             results: "".to_owned(),
-            done_a: true,
-            done_b: true,
             handle_a: thread::spawn(move || {}),
             handle_b: thread::spawn(move || {}),
+            rolling_a: false,
+            rolling_b: false,
+            ready_a: false,
+            ready_b: false,
         }
     }
 }
 
 impl DiceApp
 {
+    fn sides(&self) -> i32
+    {
+        self.sides.parse().expect("Couldn't parse sides!")
+    }
 
-    fn start_rolling_a(&self) -> JoinHandle<()>
+    fn times(&self) -> i32
+    {
+        self.times.parse().expect("Couldn't parse times!")
+    }
+
+    fn start_rolling_a(&mut self) -> JoinHandle<()>
     {
         let value = Arc::clone(&self.value_a);
-        let sides = self.sides.clone();
-        let times = self.times.clone();
+        let sides = self.sides();
+        let times = self.times();
+        self.rolling_a = true;
 
         let handle = thread::spawn(move || {
-            let mut a = value.lock().unwrap();
+
+            let mut roll_total = value.lock().unwrap();
 
             for _ in 0..times
             {
-                *a += roll(sides) + roll(sides);
+                *roll_total += roll(sides) + roll(sides);
             }
+
             println!("Method A - Done.");
         });
 
@@ -117,19 +130,19 @@ impl DiceApp
         handle
     }
 
-    fn start_rolling_b(&self) -> JoinHandle<()>
+    fn start_rolling_b(&mut self) -> JoinHandle<()>
     {
         let value = Arc::clone(&self.value_b);
-        let sides = self.sides.clone();
-        let times = self.times.clone();
+        let sides = self.sides();
+        let times = self.times();
+        self.rolling_b = true;
 
         let handle = thread::spawn(move || {
-            //self.working_b.store(true, std::sync::atomic::Ordering::Relaxed);
-            let mut a = value.lock().unwrap();
+            let mut roll_total = value.lock().unwrap();
 
             for _ in 0..times
             {
-                *a += 2.0 * roll(sides);
+                *roll_total += 2.0 * roll(sides);
             }
             println!("Method B - Done.");
             //self.working_b.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -142,13 +155,13 @@ impl DiceApp
     fn result_a(&self) -> f64
     {
         let total = self.value_a.lock().unwrap().clone();
-        return total / self.times as f64;
+        return total / self.times() as f64;
     }
 
     fn result_b(&self) -> f64
     {
         let total = self.value_b.lock().unwrap().clone();
-        return total / self.times as f64;
+        return total / self.times() as f64;
     }
 }
 
@@ -157,25 +170,22 @@ impl eframe::App for DiceApp
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame)
     {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let Self { sides, times, .. } = self;
+            let Self { sides, times,  .. } = self;
 
-            let sides: i32 = *sides;
-            let times: i32 = *times;
-
-            let sides_str = &mut format!("sides: {}", sides);
-            let times_str = &mut format!("times: {}", times);
+            let n_sides: i32 = sides.parse().expect("Couldn't parse sides!");
+            let n_times: i32 = times.parse().expect("Couldn't parse times!");
 
             ui.heading("Dice Roller");
 
             ui.horizontal(|ui| {
                 let sides_label = ui.label("Sides on Dice: ");
-                ui.text_edit_singleline(sides_str)
+                ui.text_edit_singleline(sides)
                   .labelled_by(sides_label.id);
             });
 
             ui.horizontal(|ui| {
                 let times_label = ui.label("Times to Roll: ");
-                ui.text_edit_singleline(times_str)
+                ui.text_edit_singleline(times)
                   .labelled_by(times_label.id);
             });
 
@@ -185,16 +195,15 @@ impl eframe::App for DiceApp
             let btn = egui::Button::new("Roll <Enter>").min_size(Vec2::new(80.0, 30.0));
             let r = ui.add(btn);
 
-            if sides == 0 || times == 0
+            if n_sides == 0 || n_times == 0
             {
                 return;
             }
 
             if r.clicked() || ctx.input(|i| i.key_pressed(Key::Enter))
             {
-                self.done_a = false;
-                self.done_b = false;
                 self.results = "".to_owned();
+
                /* let handle_a = self.start_rolling_a();
                 let handle_b = self.start_rolling_b();*/
 
@@ -222,24 +231,39 @@ impl eframe::App for DiceApp
                 results.push_str(format!("Percent Difference: {:.5}%", (f64::max(a, b) - f64::min(a, b)) / f64::max(a, b) * 100f64).as_str());*/
             }
 
-            if self.handle_a.is_finished() && !self.done_a
+            if self.handle_a.is_finished() && self.rolling_a
             {
-                self.done_a = true;
+                self.results.push_str(format!("Rolling (2d{}) {} times...\n", n_sides, n_times.separate_with_commas()).as_str());
+                self.results.push_str(format!("Average roll: {:.5}\n", self.value_a.lock().unwrap().clone() / (n_times as f64)).as_str());
 
-                self.results.push_str(format!("Rolling (2d{}) {} times...\n", sides, times.separate_with_commas()).as_str());
-                self.results.push_str(format!("Average roll: {:.5}\n", self.value_a.lock().unwrap().clone() / (times as f64)).as_str());
-
+                self.rolling_a = false;
+                self.ready_a = true;
                 println!("Method A - {}", self.result_a());
             }
 
-            if self.handle_b.is_finished() && !self.done_b
+            if self.handle_b.is_finished() && self.rolling_b
             {
-                self.done_b = true;
+                self.results.push_str(format!("Rolling (1d{} x 2) {} times...\n", n_sides, n_times.separate_with_commas()).as_str());
+                self.results.push_str(format!("Average roll: {:.5}\n", self.value_b.lock().unwrap().clone() / (n_times as f64)).as_str());
 
-                self.results.push_str(format!("Rolling (1d{} x 2) {} times...\n", sides, times.separate_with_commas()).as_str());
-                self.results.push_str(format!("Average roll: {:.5}\n", self.value_b.lock().unwrap().clone() / (times as f64)).as_str());
-
+                self.rolling_b = false;
+                self.ready_b = true;
                 println!("Method B - {}", self.result_b());
+            }
+
+
+            if  self.ready_a && self.ready_b
+            {
+                let a = self.value_a.lock().unwrap().clone();
+                let b = self.value_b.lock().unwrap().clone();
+
+                self.results.push_str(
+                    format!("Percent Difference: {:.5}%", (f64::max(a, b) - f64::min(a, b)) / f64::max(a, b) * 100f64)
+                    .as_str()
+                );
+
+                self.ready_a = false;
+                self.ready_b = false;
             }
 
            /* ui.centered_and_justified(move |ui| {
