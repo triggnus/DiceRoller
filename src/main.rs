@@ -24,6 +24,8 @@ fn main() -> eframe::Result
         ..Default::default()
     };
 
+    //TEST
+
     //let die = 6;
     //let die:i32 = get_from_stdin("How Many Sides: ");
     //let times = 100_000_000;
