@@ -1,21 +1,22 @@
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::thread::JoinHandle;
+//! # DiceRoll
+//!
+//! Attempts to determine if rolling two dice yields the same result on average, as rolling one die and doubling and
+//! measuring the difference.
+//! Presumably, there is an elegant statistical method for determining exactly this, but it's easy enough to roll a
+//! billion virtual dice and average the result.
+
+mod dice_roller;
 use eframe::egui;
 use egui::Key;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::Vec2;
-use rand::Rng;
 use thousands::Separable;
 
-fn roll(sides: i32) -> f64
-{
-    rand::thread_rng().gen_range(1..=sides) as f64
-}
+use dice_roller::DiceRoller;
 
 fn main() -> eframe::Result
 {
-    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+    env_logger::init();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -23,32 +24,6 @@ fn main() -> eframe::Result
         centered: true,
         ..Default::default()
     };
-
-    //let die = 6;
-    //let die:i32 = get_from_stdin("How Many Sides: ");
-    //let times = 100_000_000;
-    //let times:i32 = get_from_stdin("How Many Times to Roll: ");
-
-    /*println!("Critical hit odds. Rolling twice versus rolling once and multiplying by 2.");
-    println!("\tRolling (2d{}) {} times...", die, times.separate_with_commas());
-
-    let mut a:f64 = 0.0;
-    for _ in 0..times
-    {
-        a = a + roll(die) + roll(die);
-    }
-
-    println!("\tAverage roll: {:.5}\n", a / (times as f64));
-    println!("\tRolling (1d{} x 2) {} times...", die, times.separate_with_commas());
-
-    let mut b:f64 = 0.0;
-    for _ in 0..times
-    {
-        b = b + (2.0 * roll(die));
-    }
-
-    println!("\tAverage roll: {:.5}\n", b / (times as f64));
-    println!("Percent Difference: {:.5}%", (f64::max(a, b) - f64::min(a, b)) / f64::max(a, b) * 100f64)*/
 
     eframe::run_native(
         "Critical Hit Odds",
@@ -59,11 +34,18 @@ fn main() -> eframe::Result
     )
 }
 
+/// # DiceApp
+/// Egui requires a struct the implements eframe::App
+/// All events happen within the context of this struct, so I made the whole program live within it.
+/// Ideally, this would be a separate module.
+///
+/// TODO: Make this a separate module.
 struct DiceApp
 {
     sides: String,
     times: String,
-    value_a: Arc<Mutex<f64>>,
+    roller: DiceRoller,
+    /*value_a: Arc<Mutex<f64>>,
     value_b: Arc<Mutex<f64>>,
     results: String,
     handle_a: JoinHandle<()>,
@@ -71,7 +53,7 @@ struct DiceApp
     rolling_a: bool,
     rolling_b: bool,
     ready_a: bool,
-    ready_b: bool,
+    ready_b: bool,*/
 }
 
 impl Default for DiceApp
@@ -82,86 +64,8 @@ impl Default for DiceApp
         {
             sides: "12".to_owned(),
             times: "100000000".to_owned(),
-            value_a: Arc::new(Mutex::new(0.0)),
-            value_b: Arc::new(Mutex::new(0.0)),
-            results: "".to_owned(),
-            handle_a: thread::spawn(move || {}),
-            handle_b: thread::spawn(move || {}),
-            rolling_a: false,
-            rolling_b: false,
-            ready_a: false,
-            ready_b: false,
+            roller: DiceRoller::new(),
         }
-    }
-}
-
-impl DiceApp
-{
-    fn sides(&self) -> i32
-    {
-        self.sides.parse().expect("Couldn't parse sides!")
-    }
-
-    fn times(&self) -> i32
-    {
-        self.times.parse().expect("Couldn't parse times!")
-    }
-
-    fn start_rolling_a(&mut self) -> JoinHandle<()>
-    {
-        let value = Arc::clone(&self.value_a);
-        let sides = self.sides();
-        let times = self.times();
-        self.rolling_a = true;
-
-        let handle = thread::spawn(move || {
-
-            let mut roll_total = value.lock().unwrap();
-
-            for _ in 0..times
-            {
-                *roll_total += roll(sides) + roll(sides);
-            }
-
-            println!("Method A - Done.");
-        });
-
-        println!("Method A - Loaded.");
-        handle
-    }
-
-    fn start_rolling_b(&mut self) -> JoinHandle<()>
-    {
-        let value = Arc::clone(&self.value_b);
-        let sides = self.sides();
-        let times = self.times();
-        self.rolling_b = true;
-
-        let handle = thread::spawn(move || {
-            let mut roll_total = value.lock().unwrap();
-
-            for _ in 0..times
-            {
-                *roll_total += 2.0 * roll(sides);
-            }
-            println!("Method B - Done.");
-            //self.working_b.store(false, std::sync::atomic::Ordering::Relaxed);
-        });
-
-        println!("Method B - Loaded.");
-        handle
-    }
-
-    fn result_a(&self) -> f64
-    {
-        let total = self.value_a.lock().unwrap().clone();
-        return total / self.times() as f64;
-    }
-
-    fn result_b(&self) -> f64
-    {
-        let total = self.value_b.lock().unwrap().clone();
-        return total / self.times() as f64;
     }
 }
 
@@ -170,11 +74,24 @@ impl eframe::App for DiceApp
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame)
     {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let Self { sides, times,  .. } = self;
+            let Self { sides, times, roller, .. } = self;
 
-            let n_sides: i32 = sides.parse().expect("Couldn't parse sides!");
-            let n_times: i32 = times.parse().expect("Couldn't parse times!");
+            // this code catches any non-integer values
+            roller.sides =  sides.parse().map_or_else(|_|
+                                                          {
+                                                              roller.results = "Invalid Input".to_owned();
+                                                              *sides = format!("{}", roller.sides).to_string();
+                                                              roller.sides
+                                                          },
+                                                      |v|v);
+            roller.times = times.parse().map_or_else(|_|
+                                                         {
+                                                             roller.results = "Invalid Input".to_owned();
+                                                             *times = format!("{}", roller.times).to_string();
+                                                             roller.times
+                                                         }, |v|v);
 
+            // START: UI construction
             ui.heading("Dice Roller");
 
             ui.horizontal(|ui| {
@@ -189,98 +106,97 @@ impl eframe::App for DiceApp
                   .labelled_by(times_label.id);
             });
 
-            //ui.label(format!("Hello '{}', age {}", self.name, self.age));
-
-
             let btn = egui::Button::new("Roll <Enter>").min_size(Vec2::new(80.0, 30.0));
             let r = ui.add(btn);
 
-            if n_sides == 0 || n_times == 0
-            {
-                return;
-            }
 
+
+            // when the 'run' button is clicked or the user presses 'Enter'
             if r.clicked() || ctx.input(|i| i.key_pressed(Key::Enter))
             {
-                self.results = "".to_owned();
-
-               /* let handle_a = self.start_rolling_a();
-                let handle_b = self.start_rolling_b();*/
-
-                self.handle_a = self.start_rolling_a();
-                self.handle_b = self.start_rolling_b();
-
-                /* *results = format!("Rolling (2d{}) {} times...\n", sides, times.separate_with_commas());
-
-                let mut a = 0.0;
-                for _ in 0..times
+                if roller.times > 1_000_000_000
                 {
-                    a = a + roll(sides) + roll(sides);
+                    roller.results = "Too many times to roll.\nMax: 1 billion rolls.".to_owned();
+                    return;
                 }
 
-                results.push_str(format!("Average roll: {:.5}\n", a / (times as f64)).as_str());
-                results.push_str(format!("Rolling (1d{} x 2) {} times...\n", sides, times.separate_with_commas()).as_str());
-
-                let mut b:f64 = 0.0;
-                for _ in 0..times
+                // Catch an edge case where both sides and times are zero.
+                if roller.sides == 0 || roller.times == 0
                 {
-                    b = b + (2.0 * roll(sides));
+                    return;
                 }
+                // we only want to start rolling if no dice are rolling.
+                if !roller.rolling_a && !roller.rolling_b
+                {
+                    // reset results
+                    roller.reset();
 
-                results.push_str(format!("Average roll: {:.5}\n", b / (times as f64)).as_str());
-                results.push_str(format!("Percent Difference: {:.5}%", (f64::max(a, b) - f64::min(a, b)) / f64::max(a, b) * 100f64).as_str());*/
+                    // start rolling and store the handles
+                    roller.handle_a = roller.start_rolling_a();
+                    roller.handle_b = roller.start_rolling_b();
+                }
             }
 
-            if self.handle_a.is_finished() && self.rolling_a
+            // if Method A started rolling and then finished
+            if roller.rolling_a &&roller.handle_a.is_finished()
             {
-                self.results.push_str(format!("Rolling (2d{}) {} times...\n", n_sides, n_times.separate_with_commas()).as_str());
-                self.results.push_str(format!("Average roll: {:.5}\n", self.value_a.lock().unwrap().clone() / (n_times as f64)).as_str());
+                roller.results.push_str(format!("Rolling (2d{}) {} times...\n",
+                                                roller.sides, roller.times.separate_with_commas()).as_str());
+                roller.results.push_str(format!("Average roll: {:.5}\n", roller.result_a()).as_str());
 
-                self.rolling_a = false;
-                self.ready_a = true;
-                println!("Method A - {}", self.result_a());
+                roller.rolling_a = false;
+                roller.ready_a = true;
+                //println!("Method A - {}", self.result_a());
             }
 
-            if self.handle_b.is_finished() && self.rolling_b
+            // if Method B started rolling and then finished
+            if roller.rolling_b && roller.handle_b.is_finished()
             {
-                self.results.push_str(format!("Rolling (1d{} x 2) {} times...\n", n_sides, n_times.separate_with_commas()).as_str());
-                self.results.push_str(format!("Average roll: {:.5}\n", self.value_b.lock().unwrap().clone() / (n_times as f64)).as_str());
+                roller.results.push_str(format!("Rolling (1d{} x 2) {} times...\n",
+                                                roller.sides, roller.times.separate_with_commas()).as_str());
+                roller.results.push_str(format!("Average roll: {:.5}\n", roller.result_b()).as_str());
 
-                self.rolling_b = false;
-                self.ready_b = true;
-                println!("Method B - {}", self.result_b());
+                roller.rolling_b = false;
+                roller.ready_b = true;
+                //println!("Method B - {}", self.result_b());
             }
 
-
-            if  self.ready_a && self.ready_b
+            // if both results are in, we can summarize.
+            if  roller.ready_a && roller.ready_b
             {
-                let a = self.value_a.lock().unwrap().clone();
-                let b = self.value_b.lock().unwrap().clone();
+                let a = roller.value_a.lock().unwrap().clone();
+                let b = roller.value_b.lock().unwrap().clone();
 
-                self.results.push_str(
-                    format!("Percent Difference: {:.5}%", (f64::max(a, b) - f64::min(a, b)) / f64::max(a, b) * 100f64)
+                roller.results.push_str(
+                    format!("\nPercent Difference: {:.5}%", (f64::max(a, b) - f64::min(a, b)) / f64::max(a, b) * 100f64)
                     .as_str()
                 );
 
-                self.ready_a = false;
-                self.ready_b = false;
+                // full reset.
+                roller.ready_a = false;
+                roller.ready_b = false;
             }
 
-           /* ui.centered_and_justified(move |ui| {
-                ui.disable();
-                ui.text_edit_multiline(&mut self.results);
-            });*/
+            let mut result = roller.results.clone();
+
+            if roller.rolling_a || roller.rolling_b
+            {
+                result.push_str("Working...");
+                //"Working...".to_string()
+            }
+
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let mut job = LayoutJob::single_section(
-                    self.results.clone(),
+                    result,
                     egui::TextFormat::default(),
                 );
 
                 job.wrap = egui::text::TextWrapping::default();
 
-                // NOTE: `Label` overrides some of the wrapping settings, e.g. wrap width
                 ui.label(job);
             });
+
+            // repainting is slightly less efficient, but it's the only way the UI updates between job completions.
             ctx.request_repaint();
         });
     }
