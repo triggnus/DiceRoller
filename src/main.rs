@@ -36,24 +36,11 @@ fn main() -> eframe::Result
 
 /// # DiceApp
 /// Egui requires a struct the implements eframe::App
-/// All events happen within the context of this struct, so I made the whole program live within it.
-/// Ideally, this would be a separate module.
-///
-/// TODO: Make this a separate module.
 struct DiceApp
 {
     sides: String,
     times: String,
     roller: DiceRoller,
-    /*value_a: Arc<Mutex<f64>>,
-    value_b: Arc<Mutex<f64>>,
-    results: String,
-    handle_a: JoinHandle<()>,
-    handle_b: JoinHandle<()>,
-    rolling_a: bool,
-    rolling_b: bool,
-    ready_a: bool,
-    ready_b: bool,*/
 }
 
 impl Default for DiceApp
