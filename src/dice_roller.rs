@@ -10,15 +10,19 @@ pub fn roll(sides: u32) -> f64
 	rand::thread_rng().gen_range(1..=sides) as f64
 }
 
+/// # DiceRoller
+/// Method A: Roll 2 dice some number of times and average the result.
+/// Method B: Roll 1 die the same number of times but double the number before averaging the result.
+/// Determine if there is a statistically significant difference between the results.
 pub struct DiceRoller
 {
-	pub(crate) sides: u32,
-	pub(crate) times: u32,
-	pub(crate) value_a: Arc<Mutex<f64>>,
-	pub(crate) value_b: Arc<Mutex<f64>>,
-	pub(crate) results: String,
-	pub(crate) handle_a: JoinHandle<()>,
-	pub(crate) handle_b: JoinHandle<()>,
+	pub sides: u32,
+	pub times: u32,
+	pub value_a: Arc<Mutex<f64>>,
+	pub value_b: Arc<Mutex<f64>>,
+	pub results: String,
+	pub handle_a: JoinHandle<()>,
+	pub handle_b: JoinHandle<()>,
 	pub rolling_a: bool,
 	pub rolling_b: bool,
 	pub ready_a: bool,
@@ -59,7 +63,7 @@ impl DiceRoller
 	}
 
 	/// Start the process for running two dice.
-	pub(crate) fn start_rolling_a(&mut self) -> JoinHandle<()>
+	pub fn start_rolling_a(&mut self) -> JoinHandle<()>
 	{
 		let value = Arc::clone(&self.value_a);
 		let sides = self.sides;
@@ -82,7 +86,7 @@ impl DiceRoller
 	}
 
 	/// Start the process for rolling one die and multiplying by two.
-	pub(crate) fn start_rolling_b(&mut self) -> JoinHandle<()>
+	pub fn start_rolling_b(&mut self) -> JoinHandle<()>
 	{
 		let value = Arc::clone(&self.value_b);
 		let sides = self.sides;
@@ -103,13 +107,13 @@ impl DiceRoller
 		handle
 	}
 
-	pub(crate) fn result_a(&self) -> f64
+	pub fn result_a(&self) -> f64
 	{
 		let total = self.value_a.lock().unwrap().clone();
 		return total / self.times as f64;
 	}
 
-	pub(crate) fn result_b(&self) -> f64
+	pub fn result_b(&self) -> f64
 	{
 		let total = self.value_b.lock().unwrap().clone();
 		return total / self.times as f64;
