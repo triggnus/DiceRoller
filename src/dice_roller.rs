@@ -1,4 +1,3 @@
-
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
@@ -7,7 +6,7 @@ use rand::Rng;
 /// Roll a die with the given number of sides.
 pub fn roll(sides: u32) -> f64
 {
-	rand::thread_rng().gen_range(1..=sides) as f64
+	rand::rng().random_range(1..=sides) as f64
 }
 
 /// # DiceRoller
@@ -78,10 +77,8 @@ impl DiceRoller
 			{
 				*roll_total += roll(sides) + roll(sides);
 			}
-			//println!("Method A - Done.");
 		});
 
-		//println!("Method A - Loaded.");
 		handle
 	}
 
@@ -100,22 +97,20 @@ impl DiceRoller
 			{
 				*roll_total += 2.0 * roll(sides);
 			}
-			//println!("Method B - Done.");
 		});
 
-		//println!("Method B - Loaded.");
 		handle
 	}
 
 	pub fn result_a(&self) -> f64
 	{
-		let total = self.value_a.lock().unwrap().clone();
-		return total / self.times as f64;
+		let total = *self.value_a.lock().unwrap();
+		total / self.times as f64
 	}
 
 	pub fn result_b(&self) -> f64
 	{
-		let total = self.value_b.lock().unwrap().clone();
-		return total / self.times as f64;
+		let total = *self.value_b.lock().unwrap();
+		total / self.times as f64
 	}
 }

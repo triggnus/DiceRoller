@@ -6,6 +6,8 @@
 //! billion virtual dice and average the result.
 
 mod dice_roller;
+mod stats;
+
 use eframe::egui;
 use egui::Key;
 use eframe::egui::text::LayoutJob;
@@ -63,20 +65,20 @@ impl eframe::App for DiceApp
         egui::CentralPanel::default().show(ctx, |ui| {
             let Self { sides, times, roller, .. } = self;
 
-            // this code catches any non-integer values
-            roller.sides =  sides.parse().map_or_else(|_|
-                                                          {
-                                                              roller.results = "Invalid Input".to_owned();
-                                                              *sides = format!("{}", roller.sides).to_string();
-                                                              roller.sides
-                                                          },
-                                                      |v|v);
-            roller.times = times.parse().map_or_else(|_|
-                                                         {
-                                                             roller.results = "Invalid Input".to_owned();
-                                                             *times = format!("{}", roller.times).to_string();
-                                                             roller.times
-                                                         }, |v|v);
+            // this code catches any non-integer values and disregards them
+            roller.sides =  sides.parse().unwrap_or_else(|_|
+                {
+                  roller.results = "Invalid Input".to_owned();
+                  *sides = format!("{}", roller.sides).to_string();
+                  roller.sides
+                });
+
+            roller.times = times.parse().unwrap_or_else(|_|
+                {
+                 roller.results = "Invalid Input".to_owned();
+                 *times = format!("{}", roller.times).to_string();
+                 roller.times
+                });
 
             // START: UI construction
             ui.heading("Dice Roller");
@@ -96,11 +98,10 @@ impl eframe::App for DiceApp
             let btn = egui::Button::new("Roll <Enter>").min_size(Vec2::new(80.0, 30.0));
             let r = ui.add(btn);
 
-
-
             // when the 'run' button is clicked or the user presses 'Enter'
             if r.clicked() || ctx.input(|i| i.key_pressed(Key::Enter))
             {
+                // there needs to be sensible limits on how many times this program cycles.
                 if roller.times > 1_000_000_000
                 {
                     roller.results = "Too many times to roll.\nMax: 1 billion rolls.".to_owned();
@@ -125,7 +126,7 @@ impl eframe::App for DiceApp
             }
 
             // if Method A started rolling and then finished
-            if roller.rolling_a &&roller.handle_a.is_finished()
+            if roller.rolling_a && roller.handle_a.is_finished()
             {
                 roller.results.push_str(format!("Rolling (2d{}) {} times...\n",
                                                 roller.sides, roller.times.separate_with_commas()).as_str());
@@ -151,8 +152,8 @@ impl eframe::App for DiceApp
             // if both results are in, we can summarize.
             if  roller.ready_a && roller.ready_b
             {
-                let a = roller.value_a.lock().unwrap().clone();
-                let b = roller.value_b.lock().unwrap().clone();
+                let a = *roller.value_a.lock().unwrap();
+                let b = *roller.value_b.lock().unwrap();
 
                 roller.results.push_str(
                     format!("\nPercent Difference: {:.5}%", (f64::max(a, b) - f64::min(a, b)) / f64::max(a, b) * 100f64)
@@ -169,7 +170,6 @@ impl eframe::App for DiceApp
             if roller.rolling_a || roller.rolling_b
             {
                 result.push_str("Working...");
-                //"Working...".to_string()
             }
 
             egui::ScrollArea::vertical().show(ui, |ui| {
