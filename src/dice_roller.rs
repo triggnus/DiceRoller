@@ -1,3 +1,4 @@
+
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
@@ -69,7 +70,7 @@ impl DiceRoller
 		let times = self.times;
 		self.rolling_a = true;
 
-		let handle = thread::spawn(move || {
+		thread::spawn(move || {
 
 			let mut roll_total = value.lock().unwrap();
 
@@ -77,9 +78,8 @@ impl DiceRoller
 			{
 				*roll_total += roll(sides) + roll(sides);
 			}
-		});
-
-		handle
+			//println!("Method A - Done.");
+		})
 	}
 
 	/// Start the process for rolling one die and multiplying by two.
@@ -90,16 +90,15 @@ impl DiceRoller
 		let times = self.times;
 		self.rolling_b = true;
 
-		let handle = thread::spawn(move || {
+		thread::spawn(move || {
 			let mut roll_total = value.lock().unwrap();
 
 			for _ in 0..times
 			{
 				*roll_total += 2.0 * roll(sides);
 			}
-		});
-
-		handle
+			//println!("Method B - Done.");
+		})
 	}
 
 	pub fn result_a(&self) -> f64
