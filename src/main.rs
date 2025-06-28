@@ -6,6 +6,7 @@
 //! billion virtual dice and average the result.
 
 mod dice_roller;
+
 use eframe::egui;
 use egui::Key;
 use eframe::egui::text::LayoutJob;
