@@ -3,19 +3,18 @@ name = "DiceRoll"
 version = "0.1.0"
 edition = "2024"
 
+[dependencies]
+eframe = "0.34.3"
+rand = "0.10.1"
+thousands = "0.2.0"
+
+env_logger = { version = "0.11.10", default-features = false, features = [
+  "auto-color",
+  "humantime",
+] }
+
 [profile.dev]
 opt-level = 1
 
 [profile.release]
 opt-level = 3
-
-[dependencies]
-rand = "0.9.1"
-thousands = "0.2.0"
-eframe = "0.31.1"
-
-
-env_logger = { version = "0.11.8", default-features = false, features = [
-    "auto-color",
-    "humantime",
-] }

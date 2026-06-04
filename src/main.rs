@@ -8,20 +8,18 @@
 mod dice_roller;
 
 use eframe::egui;
-use egui::Key;
-use eframe::egui::text::LayoutJob;
 use eframe::egui::Vec2;
+use eframe::egui::text::LayoutJob;
+use egui::Key;
 use thousands::Separable;
 
 use dice_roller::DiceRoller;
 
-fn main() -> eframe::Result
-{
+fn main() -> eframe::Result {
     env_logger::init();
 
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([400.0, 300.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([400.0, 300.0]),
         centered: true,
         ..Default::default()
     };
@@ -29,27 +27,21 @@ fn main() -> eframe::Result
     eframe::run_native(
         "Critical Hit Odds",
         options,
-        Box::new(|_| {
-            Ok(Box::<DiceApp>::default())
-        }),
+        Box::new(|_| Ok(Box::<DiceApp>::default())),
     )
 }
 
 /// # DiceApp
 /// Egui requires a struct the implements eframe::App
-struct DiceApp
-{
+struct DiceApp {
     sides: String,
     times: String,
     roller: DiceRoller,
 }
 
-impl Default for DiceApp
-{
-    fn default() -> Self
-    {
-        Self
-        {
+impl Default for DiceApp {
+    fn default() -> Self {
+        Self {
             sides: "12".to_owned(),
             times: "100000000".to_owned(),
             roller: DiceRoller::new(),
@@ -57,64 +49,59 @@ impl Default for DiceApp
     }
 }
 
-impl eframe::App for DiceApp
-{
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame)
-    {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            let Self { sides, times, roller, .. } = self;
+impl eframe::App for DiceApp {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        //}
+        //fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
+            let Self {
+                sides,
+                times,
+                roller,
+                ..
+            } = self;
 
             // this code catches any non-integer values
-            roller.sides =  sides.parse().unwrap_or_else(|_|
-                                                          {
-                                                              roller.results = "Invalid Input".to_owned();
-                                                              *sides = format!("{}", roller.sides).to_string();
-                                                              roller.sides
-                                                          });
-            roller.times = times.parse().unwrap_or_else(|_|
-                                                         {
-                                                             roller.results = "Invalid Input".to_owned();
-                                                             *times = format!("{}", roller.times).to_string();
-                                                             roller.times
-                                                         });
+            roller.sides = sides.parse().unwrap_or_else(|_| {
+                roller.results = "Invalid Input".to_owned();
+                *sides = format!("{}", roller.sides).to_string();
+                roller.sides
+            });
+            roller.times = times.parse().unwrap_or_else(|_| {
+                roller.results = "Invalid Input".to_owned();
+                *times = format!("{}", roller.times).to_string();
+                roller.times
+            });
 
             // START: UI construction
             ui.heading("Dice Roller");
 
             ui.horizontal(|ui| {
                 let sides_label = ui.label("Sides on Dice: ");
-                ui.text_edit_singleline(sides)
-                  .labelled_by(sides_label.id);
+                ui.text_edit_singleline(sides).labelled_by(sides_label.id);
             });
 
             ui.horizontal(|ui| {
                 let times_label = ui.label("Times to Roll: ");
-                ui.text_edit_singleline(times)
-                  .labelled_by(times_label.id);
+                ui.text_edit_singleline(times).labelled_by(times_label.id);
             });
 
             let btn = egui::Button::new("Roll <Enter>").min_size(Vec2::new(80.0, 30.0));
             let r = ui.add(btn);
 
-
-
             // when the 'run' button is clicked or the user presses 'Enter'
-            if r.clicked() || ctx.input(|i| i.key_pressed(Key::Enter))
-            {
-                if roller.times > 1_000_000_000
-                {
+            if r.clicked() || ui.input(|i| i.key_pressed(Key::Enter)) {
+                if roller.times > 1_000_000_000 {
                     roller.results = "Too many times to roll.\nMax: 1 billion rolls.".to_owned();
                     return;
                 }
 
                 // Catch an edge case where both sides and times are zero.
-                if roller.sides == 0 || roller.times == 0
-                {
+                if roller.sides == 0 || roller.times == 0 {
                     return;
                 }
                 // we only want to start rolling if no dice are rolling.
-                if !roller.rolling_a && !roller.rolling_b
-                {
+                if !roller.rolling_a && !roller.rolling_b {
                     // reset results
                     roller.reset();
 
@@ -125,11 +112,18 @@ impl eframe::App for DiceApp
             }
 
             // if Method A started rolling and then finished
-            if roller.rolling_a &&roller.handle_a.is_finished()
-            {
-                roller.results.push_str(format!("Rolling (2d{}) {} times...\n",
-                                                roller.sides, roller.times.separate_with_commas()).as_str());
-                roller.results.push_str(format!("Average roll: {:.5}\n", roller.result_a()).as_str());
+            if roller.rolling_a && roller.handle_a.is_finished() {
+                roller.results.push_str(
+                    format!(
+                        "Rolling (2d{}) {} times...\n",
+                        roller.sides,
+                        roller.times.separate_with_commas()
+                    )
+                    .as_str(),
+                );
+                roller
+                    .results
+                    .push_str(format!("Average roll: {:.5}\n", roller.result_a()).as_str());
 
                 roller.rolling_a = false;
                 roller.ready_a = true;
@@ -137,11 +131,18 @@ impl eframe::App for DiceApp
             }
 
             // if Method B started rolling and then finished
-            if roller.rolling_b && roller.handle_b.is_finished()
-            {
-                roller.results.push_str(format!("Rolling (1d{} x 2) {} times...\n",
-                                                roller.sides, roller.times.separate_with_commas()).as_str());
-                roller.results.push_str(format!("Average roll: {:.5}\n", roller.result_b()).as_str());
+            if roller.rolling_b && roller.handle_b.is_finished() {
+                roller.results.push_str(
+                    format!(
+                        "Rolling (1d{} x 2) {} times...\n",
+                        roller.sides,
+                        roller.times.separate_with_commas()
+                    )
+                    .as_str(),
+                );
+                roller
+                    .results
+                    .push_str(format!("Average roll: {:.5}\n", roller.result_b()).as_str());
 
                 roller.rolling_b = false;
                 roller.ready_b = true;
@@ -149,14 +150,16 @@ impl eframe::App for DiceApp
             }
 
             // if both results are in, we can summarize.
-            if  roller.ready_a && roller.ready_b
-            {
+            if roller.ready_a && roller.ready_b {
                 let a = *roller.value_a.lock().unwrap();
                 let b = *roller.value_b.lock().unwrap();
 
                 roller.results.push_str(
-                    format!("\nPercent Difference: {:.5}%", (f64::max(a, b) - f64::min(a, b)) / f64::max(a, b) * 100f64)
-                    .as_str()
+                    format!(
+                        "\nPercent Difference: {:.5}%",
+                        (f64::max(a, b) - f64::min(a, b)) / f64::max(a, b) * 100f64
+                    )
+                    .as_str(),
                 );
 
                 // full reset.
@@ -166,17 +169,13 @@ impl eframe::App for DiceApp
 
             let mut result = roller.results.clone();
 
-            if roller.rolling_a || roller.rolling_b
-            {
+            if roller.rolling_a || roller.rolling_b {
                 result.push_str("Working...");
                 //"Working...".to_string()
             }
 
             egui::ScrollArea::vertical().show(ui, |ui| {
-                let mut job = LayoutJob::single_section(
-                    result,
-                    egui::TextFormat::default(),
-                );
+                let mut job = LayoutJob::single_section(result, egui::TextFormat::default());
 
                 job.wrap = egui::text::TextWrapping::default();
 
@@ -184,7 +183,7 @@ impl eframe::App for DiceApp
             });
 
             // repainting is slightly less efficient, but it's the only way the UI updates between job completions.
-            ctx.request_repaint();
+            ui.request_repaint();
         });
     }
 }
